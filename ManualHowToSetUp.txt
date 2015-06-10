@@ -1,0 +1,183 @@
+Step 1: Resources
+
+I have to start with credit to the websites that I used for my research:
+
+http://www.lavrsen.dk/foswiki/bin/view/Motion/WebHome - The software I used was called Motion, it handles the streaming of the webcam to the web as well as detecting motion and saving the movie files.
+
+https://github.com/andreafabrizi/Dropbox-Uploader - This software allow you to sync your files into a Dropbox Account
+
+http://www.slblabs.com/2012/09/26/rpi-webcam-stream/ - This site explains a few different ways to setup the camera on the raspberry pi to set up a simple web stream of the image.
+
+http://mogshade.wordpress.com/2012/12/23/simple-home-security-with-raspberry-pi-and-dropbox/ - This site is where i started with for implementing the upload of the movie files to a Dropbox account
+
+http://www.instructables.com/id/Host-your-website-on-Raspberry-pi/ - This Instructable was used to set up a simple website to view your Web Stream from.
+Step 2: Setting Up Your Raspberry Pi
+
+Picture of Setting Up Your Raspberry Pi
+First things first. The raspberry pi should be setup with a standard version of Raspbian. If any help on doing this is needed please refer to http://www.raspberrypi.org/ or http://learn.adafruit.com/adafruit-raspberry-pi-lesson-1-preparing-and-sd-card-for-your-raspberry-pi
+
+We also need to setup a SSH connection to access the Raspberry Pi remotely. So do this refer to http://raspberrypi4dummies.wordpress.com/2013/03/17/connect-to-the-raspberry-pi-via-ssh-putty/
+
+Now You should setup port forwarding for your raspberry pi for both port 80 and 8081
+while you are in your router settings also write down your Raspberry Pi's Public IP address as it will be what we use in the next few steps.
+Step 3: Installing the Motion Detection Software
+
+Picture of Installing the Motion Detection Software
+Now lets install the Motion Software onto the Raspberry Pi.
+
+1) Install Motion using the following commands:
+sudo apt-get update
+sudo apt-get upgrade
+sudo apt-get install motion
+
+2) Now lets setup the Motion Software, the following will open the configuration file:
+sudo nano /etc/motion/motion.conf
+
+a) In this file, you can adjust a whole bunch of things in the motion software but there are a few things that we need to change first
+daemon - default is set to OFF, we need to set it to ON so that it will run in the background
+webcam_localhost - Set to OFF so that you can access the stream from other computers
+stream_port - Take note of the port as this is where you will point your browser to view the stream
+control_localhost - Set to OFF as this will allow you to adjust some of the features remotely (I dont use this but it could be useful)
+control_port - Take note of this port as it will be how you can change some parameters remotely in your web browser
+framerate - I set this to 2 or 3 frames per second (over 5 will bog down your Pi)
+
+b) We also need to change one last setting:
+sudo nano /etc/default/motion
+change "start_motion_daemon=no" to "start_motion_daemon=yes"
+
+Now if you start the Motion software, in some browsers you will be able to view the stream. if you cannot yet, we will correct that in the next step.
+
+Step 4: Setting up the Web Server
+
+Picture of Setting up the Web Server
+Next thing to make the web stream visible from nearly all browsers we need to setup a small web server on the raspberry pi along with a simple HTML page.
+
+We are going to install Apache, PHP5, and PHP5 mod for apache. Not all of them may be used in this project but they are good to have in case you want to make your website a bit more that we will setup here.
+
+Now Install the applications with the following command:
+sudo apt-get install apache2 php5 libapache2-mod-php5 
+
+Next allow overrides:
+sudo nano /etc/apache2/sites-enabled/000-default
+
+Change "AllowOverride None" to "AllowOverride ALL"
+
+Now restart the server to to allow the overrides
+
+sudo service apache2 restart
+
+
+Now your Website is Up and running. If you type the IP address for your Raspberry Pi into a browser you should be able to see a simple website.
+Step 5: Setting Up a Basic Webpage
+
+Picture of Setting Up a Basic Webpage
+Now that you have a basic website being hosted on your raspberry Pi as well as the motion capture software lets combine the two.
+
+first lets change the permissions to the directory for the HTML file
+
+sudo chmod 777 /var/www
+
+If you type in the following command line it will bring you to the HTML file that is the front page of your website:
+
+sudo nano /var/www/index.html
+
+This file currently contains the HTML code for a very basic website. We are going to change it to the following in order to display the web streaming image.
+
+<xmp>
+<html>
+<body>
+<h1> Raspberry Pi DropBox Camera Stream </h1>
+<img src="http://Raspberry pi's IP:8081">
+</body>
+<html>
+</xmp>
+
+Note: Remove the <xmp> & </xmp>, this was the only way I know to get HTML into an instructable
+
+Save this file and then in a web browser type in the raspberry pi's IP address and check out your new website
+
+
+Step 6: Linking your Raspberry Pi to your Dropbox Account
+
+Picture of Linking your Raspberry Pi to your Dropbox Account
+First be sure that you have a DropBox account (www.dropbox.com). If you do not then set one up before going on.
+
+Then Download Dropbox Uploader
+First Change to which ever directory that you would like to install this program into (I just did it to the Home Directory)
+
+Now download the application using the following command:
+curl "https://raw.github.com/andreafabrizi/Dropbox-Uploader/master/dropbox_uploader.sh" -o dropbox_uploader.sh
+
+Now change the permissions of the program
+sudo chmod +x dropbox_uploader.sh
+
+Finally run the script and follow the instructions it gives you.  This will guide you through setting up the OAuth connection to your dropbox account
+./dropbox_uploader.sh
+
+If you have any issues, try reading the README.txt in the files you downloaded or visible here
+https://github.com/andreafabrizi/Dropbox-Uploader/blob/master/README.md
+
+Step 7: Create Automatic Dropbox Uploads
+
+Picture of Create Automatic Dropbox Uploads
+Now we just need to create 2 Python Scripts. One to upload the Movie files and another to clear the temp directory from time to time.
+
+First lets start with with creating the Python Script to Upload to Dropbox automatically.
+
+Change the directory to which ever directory you would like (i did this in the home directory)
+Then use the following command to create the script called Uploader
+
+sudo nano uploader.py
+
+Now you should be in the blank python script file. Insert the following code into the file.
+Please Note that this script is assuming that Motion's files are being saved in the Temp Directory (the default)
+
+import os
+path="/tmp/motion/"
+def upload_files():
+if not os.path.exists(path):
+return
+os.stdir(path)
+for files in os.listdir("."):
+if files.endswith(".avi"):
+cmd = "/home/pi/dropbox_uploader.sh upload " + path + files
+os.system(cmd)
+os.system("sudo rm /tmp/motion/" + files)
+if _name_ == "_main_":
+upload_files()
+
+Save and close the file (CTRL + X)
+
+Now lets create the second File that clears the Temp Directory (this will happen each time the raspbery pi is restarted but I wanted to have more control)
+
+sudo nano cleartmp.py
+
+In this new file place the following simple code
+
+import os
+os.system("sudo rm /tmp/motion/" + "*.jpg")
+
+again Save and Close the file (CTRL + X)
+
+
+
+Now One last time to make these two things run automatically
+
+Type the following command to modify the crontab file
+
+crontab -e
+
+Add the following to lines to the bottom of this file
+
+* * * * * python /home/pi/uploader.py # Sync webcam files dropbox to run each minute
+@hourly python /home/pi/cleartmp/pr #Clear temp for motion each hour
+
+Close and Save
+Step 8: Finished
+
+Picture of Finished
+Now you are all set. I know that alot of this was a brute force method but it works. Also be careful as the website not very secure as it is just accessed via your IP address. 
+
+Finally, you can go through and play with the settings in motion to fine tune it as to what you would like.
+
+Enjoy!
